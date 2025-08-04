@@ -114,6 +114,16 @@ class ApiClient {
 
       const data = await response.json();
 
+      // Health endpoint doesn't have a success field, check if response is ok
+      if (url === '/health') {
+        if (!response.ok) {
+          const error = new Error(data.error || 'Health check failed');
+          (error as any).response = { data, status: response.status };
+          throw error;
+        }
+        return data;
+      }
+
       if (!data.success) {
         // Handle unauthorized errors by clearing auth
         if (response.status === 401 || data.code === 'UNAUTHORIZED' || data.code === 'SESSION_INVALID' || data.code === 'SESSION_EXPIRED') {
