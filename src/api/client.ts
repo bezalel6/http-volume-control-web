@@ -7,41 +7,116 @@ import {
   ApiResult 
 } from '@/types/audio';
 import { Settings } from '@/types/settings';
+import { 
+  PairingStatus, 
+  PairingInitiateResponse, 
+  PairingCompleteResponse, 
+  SessionListResponse 
+} from '@/types/pairing';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const API_KEY = import.meta.env.VITE_API_KEY || '';
+const TOKEN_KEY = 'http-volume-control-token';
+const SESSION_KEY = 'http-volume-control-session';
 
 class ApiClient {
-  private baseUrl: string;
-  private headers: HeadersInit;
+  public readonly baseUrl: string;
 
   constructor() {
     this.baseUrl = API_URL;
-    this.headers = {
+  }
+
+  public getHeaders(): HeadersInit {
+    const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
     
-    if (API_KEY) {
-      this.headers['X-API-Key'] = API_KEY;
+    // Check for stored token first, then API key
+    const storedToken = this.getStoredToken();
+    if (storedToken) {
+      headers['Authorization'] = `Bearer ${storedToken}`;
+    } else if (API_KEY) {
+      headers['X-API-Key'] = API_KEY;
     }
+    
+    return headers;
+  }
+
+  private getStoredToken(): string | null {
+    return localStorage.getItem(TOKEN_KEY);
+  }
+
+  private getStoredSession(): string | null {
+    return localStorage.getItem(SESSION_KEY);
+  }
+
+  public setAuthToken(token: string, sessionData: any): void {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
+  }
+
+  public clearAuth(): void {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(SESSION_KEY);
+  }
+
+  public isAuthenticated(): boolean {
+    return !!this.getStoredToken() || !!API_KEY;
+  }
+
+  public getSessionInfo(): any | null {
+    const session = this.getStoredSession();
+    return session ? JSON.parse(session) : null;
   }
 
   private async fetch<T>(url: string, options?: RequestInit): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${url}`, {
-      ...options,
-      headers: {
-        ...this.headers,
+    try {
+      const fullUrl = `${this.baseUrl}${url}`;
+      const finalHeaders = {
+        ...this.getHeaders(),
         ...options?.headers,
-      },
-    });
+      };
+      
+      
+      const response = await fetch(fullUrl, {
+        ...options,
+        headers: finalHeaders,
+        credentials: 'include', // Include credentials for CORS
+      });
 
-    const data = await response.json();
+      // Handle 429 Too Many Requests before parsing JSON
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : 60000; // Default to 60 seconds
+        const error = new Error(`Rate limit exceeded. Please wait ${Math.ceil(waitTime / 1000)} seconds before trying again.`);
+        (error as any).response = { data: { error: 'Rate limit exceeded' }, status: 429, retryAfter: waitTime };
+        throw error;
+      }
 
-    if (!data.success) {
-      throw new Error(data.error || 'API request failed');
+      const data = await response.json();
+
+      if (!data.success) {
+        // Handle unauthorized errors by clearing auth
+        if (response.status === 401 || data.code === 'UNAUTHORIZED' || data.code === 'SESSION_INVALID' || data.code === 'SESSION_EXPIRED') {
+          this.clearAuth();
+          // Dispatch custom event to notify app
+          window.dispatchEvent(new CustomEvent('auth-error', { detail: data }));
+        }
+        const error = new Error(data.error || 'API request failed');
+        (error as any).response = { data, status: response.status };
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      // Handle network errors
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        const networkError = new Error('Network error: Unable to connect to server');
+        (networkError as any).response = { data: { error: 'Network error' }, status: 0 };
+        throw networkError;
+      }
+      throw error;
     }
-
-    return data;
   }
 
   // Device endpoints
@@ -99,6 +174,47 @@ class ApiClient {
   // Health check
   async health(): Promise<{ status: string; timestamp: string; uptime: number }> {
     return this.fetch<{ status: string; timestamp: string; uptime: number }>('/health');
+  }
+
+  // Pairing endpoints
+  async getPairingStatus(): Promise<PairingStatus & { success: boolean; timestamp: string }> {
+    return this.fetch<PairingStatus & { success: boolean; timestamp: string }>('/api/pairing/status');
+  }
+
+  async initiatePairing(deviceName?: string): Promise<PairingInitiateResponse> {
+    return this.fetch<PairingInitiateResponse>('/api/pairing/initiate', {
+      method: 'POST',
+      body: JSON.stringify({ deviceName }),
+    });
+  }
+
+  async completePairing(code: string, sessionId: string): Promise<PairingCompleteResponse> {
+    return this.fetch<PairingCompleteResponse>('/api/pairing/complete', {
+      method: 'POST',
+      body: JSON.stringify({ code, sessionId }),
+    });
+  }
+
+  async getSessions(): Promise<SessionListResponse> {
+    return this.fetch<SessionListResponse>('/api/sessions');
+  }
+
+  async getCurrentSession(): Promise<ApiResult<{ session: any }>> {
+    return this.fetch<ApiResult<{ session: any }>>('/api/sessions/current');
+  }
+
+  async revokeSession(sessionId: string): Promise<ApiResult<{ message: string }>> {
+    return this.fetch<ApiResult<{ message: string }>>(`/api/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async logout(): Promise<ApiResult<{ message: string }>> {
+    const result = await this.fetch<ApiResult<{ message: string }>>('/api/sessions/logout', {
+      method: 'POST',
+    });
+    this.clearAuth();
+    return result;
   }
 }
 
