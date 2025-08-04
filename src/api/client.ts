@@ -14,7 +14,25 @@ import {
   SessionListResponse 
 } from '@/types/pairing';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Dynamically determine API URL based on where the app is served from
+const getApiUrl = () => {
+  // If explicitly set via environment variable, use that
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // If running on localhost (development), use localhost API
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:3001';
+  }
+  
+  // Otherwise, assume API is on same host but different port
+  const protocol = window.location.protocol;
+  const hostname = window.location.hostname;
+  return `${protocol}//${hostname}:3001`;
+};
+
+const API_URL = getApiUrl();
 const API_KEY = import.meta.env.VITE_API_KEY || '';
 const TOKEN_KEY = 'http-volume-control-token';
 const SESSION_KEY = 'http-volume-control-session';
@@ -24,6 +42,7 @@ class ApiClient {
 
   constructor() {
     this.baseUrl = API_URL;
+    console.log('API Client initialized with URL:', this.baseUrl);
   }
 
   public getHeaders(): HeadersInit {

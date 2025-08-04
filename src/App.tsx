@@ -139,7 +139,7 @@ function App() {
                 <p className="text-sm text-muted-foreground">
                   {!isAuthenticated 
                     ? 'Please pair this device to continue' 
-                    : `Make sure the API server is running on ${import.meta.env.VITE_API_URL || 'http://localhost:3001'}`
+                    : 'Make sure the API server is running and accessible'
                   }
                 </p>
                 {!isAuthenticated && (
