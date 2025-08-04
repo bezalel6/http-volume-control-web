@@ -11,7 +11,17 @@ export function useApplications() {
       }
       return response.applications;
     },
-    refetchInterval: 5000, // Refetch every 5 seconds to catch new apps
+    refetchInterval: 30000, // Refetch every 30 seconds to reduce API load
+    refetchIntervalInBackground: false, // Stop refetching when tab is in background
+    retry: (failureCount, error: any) => {
+      // Don't retry on 429 errors
+      if (error?.response?.status === 429) {
+        return false;
+      }
+      // Retry up to 3 times for other errors
+      return failureCount < 3;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   });
 }
 
