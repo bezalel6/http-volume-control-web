@@ -2,12 +2,48 @@
 
 A modern, fast web interface for controlling Windows audio devices and application volumes.
 
+> **🔌 Requires API Server**: This web interface requires the [HTTP Volume Control API](https://github.com/bezalel6/http-volume-control-api) server to function.
+
+## Project Structure
+
+This is part of the **HTTP Volume Control** project consisting of two repositories:
+
+- **[http-volume-control-api](https://github.com/bezalel6/http-volume-control-api)** - REST API server (required backend)
+- **[http-volume-control-web](https://github.com/bezalel6/http-volume-control-web)** ← *You are here* - Modern React web interface (this repository)
+
+## Quick Start (Complete Setup)
+
+1. **Clone both repositories:**
+   ```bash
+   git clone https://github.com/bezalel6/http-volume-control-api.git
+   git clone https://github.com/bezalel6/http-volume-control-web.git
+   ```
+
+2. **Start the API server first:**
+   ```bash
+   cd http-volume-control-api
+   npm install
+   npm run dev  # Runs on http://localhost:3001
+   ```
+
+3. **Start the web interface:**
+   ```bash
+   cd http-volume-control-web  
+   npm install
+   npm run dev  # Runs on http://localhost:5173
+   ```
+
+4. **Open the web interface** at http://localhost:5173 and start controlling your audio!
+
 ## Features
 
 - 🎵 Control system audio device volumes
 - 🎮 Control individual application volumes  
 - 🔇 Mute/unmute devices
+- 🔐 Secure pairing-based authentication
+- 👥 Multi-device session management
 - 🎨 Clean, responsive UI with dark mode support
+- 📱 Mobile-friendly responsive design
 - ⚡ Lightning fast with Vite + React
 - 🔄 Real-time updates with React Query
 - 🎯 Type-safe API integration
@@ -24,7 +60,7 @@ A modern, fast web interface for controlling Windows audio devices and applicati
 ## Requirements
 
 - Node.js 18+
-- HTTP Volume Control API running (default: http://localhost:3001)
+- [HTTP Volume Control API](https://github.com/bezalel6/http-volume-control-api) running (default: http://localhost:3001)
 
 ## Installation
 
@@ -41,12 +77,25 @@ cp .env.example .env
 Edit `.env` file:
 
 ```bash
-# API server URL
+# API server URL  
 VITE_API_URL=http://localhost:3001
-
-# Optional API key (if API requires authentication)
-VITE_API_KEY=
 ```
+
+> **Note**: Authentication is handled through the pairing system - no API key needed. The web interface will guide you through the pairing process on first use.
+
+## Authentication
+
+The web interface uses a secure pairing-based authentication system:
+
+1. **First Visit**: The app will show a pairing dialog
+2. **Pairing Process**: 
+   - Click "Start Pairing" 
+   - Check the API server console for a 6-character pairing code
+   - Enter the code to complete pairing
+3. **Session Management**: View and manage all paired devices in the Sessions dialog
+4. **Auto-Login**: Once paired, the app remembers your session
+
+> **Security**: Each device gets its own secure session token that expires after 30 days (configurable on the API server).
 
 ## Development
 
